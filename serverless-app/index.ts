@@ -15,13 +15,16 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import * as awsx from "@pulumi/awsx";
+import * as util from 'util';
+import * as AWS  from 'aws-sdk';
 
 /**** S3 Bucket *****/
 // Create an AWS resource (S3 Bucket)
 const bucket = new aws.s3.Bucket("serverless-app-bkt");
 
 /**** DynamoDB *****/
-const fileTable = new aws.dynamodb.Table("s3object-table", {
+const dbTableName = "s3object-table" 
+const fileTable = new aws.dynamodb.Table(dbTableName, {
     attributes: [
         {
             name: "ObjectKey",
@@ -41,39 +44,42 @@ const fileTable = new aws.dynamodb.Table("s3object-table", {
         attributeName: "TimeToExist",
         enabled: false,
     },
+    name: dbTableName, // could not get dynamic name of table into magic function and so essentially hardcoding the table name for now.
 });
 
-/***** Lambda function *****/
-const lambdaRole = new aws.iam.Role("lambdaRole", {
-    assumeRolePolicy: {
-       Version: "2012-10-17",
-       Statement: [{
-          Action: "sts:AssumeRole",
-          Principal: {
-             Service: "lambda.amazonaws.com",
-          },
-          Effect: "Allow",
-          Sid: "",
-       }],
-    },
- });
- new aws.iam.RolePolicyAttachment("lambdaRoleAttach", {
-    role: lambdaRole,
-    policyArn: aws.iam.ManagedPolicies.AWSLambdaFullAccess,
- });
- 
- // Create the lambda function using the function in our functions directory
- const  lambdaFunc = new aws.lambda.Function("lambdaFunc", {
-   code: new pulumi.asset.AssetArchive({
-        ".": new pulumi.asset.FileArchive("./functions"),
-    }),
-    handler: "pushS3Info.handler",
-    runtime: "nodejs12.x",
-    role: lambdaRole.arn,
- });
- 
- bucket.onObjectCreated("lambdaFunc", lambdaFunc);
+/***** Lambda via magic function love *****/
+bucket.onObjectCreated("lambdaFunc", async(event) => {
+    // Read options from the event parameter.
+    console.log("Reading options from event:\n", util.inspect(event, {depth: 5}));
 
+    for (const record of event.Records || [])  {
+        const cleanKey = decodeURIComponent(record.s3.object.key.replace(/\+/g, " "));
+        const eventTime = record.eventTime;
+
+        // DynamoDB entry
+        let dbParams = {
+            Item: {
+                ObjectKey: cleanKey,
+                TimeStamp: eventTime,
+            },
+            TableName: dbTableName,
+        }
+    
+        let dbClient = new AWS.DynamoDB.DocumentClient()
+        // Push the DB entry
+        dbClient.put(dbParams, function(err, data) {
+            if (err) {
+                console.log(err);
+            } else {
+                console.log(data);
+            }
+        });
+            
+        console.log('Pushed to DynamoDB table, ' +  dbTableName + ' - Key: ' + cleanKey + '; Timestamp: ' + eventTime);
+    };
+});
+
+/**** this doesn't really work as expected so not bothering for now 
 // push some sample files to the S3 bucket after everything is set up.
 let filesDir = "samplefiles"; // directory for some files to load as part of the S3 set up.
 for (let item of require("fs").readdirSync(filesDir)) {
@@ -83,9 +89,8 @@ for (let item of require("fs").readdirSync(filesDir)) {
       source: new pulumi.asset.FileAsset(filePath),     // use FileAsset to point to a file
     });
 }
-
+*****8*/
 
 // Export some data
 export const S3bucket = bucket.id;
 export const DynamoDbTable = fileTable.id;
-export const LambdaFunc = lambdaFunc.id;

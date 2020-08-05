@@ -7,7 +7,6 @@ const AWS = require('aws-sdk');
 const util = require('util');
 
 // get reference to S3 client
-const s3 = new AWS.S3();
 const dbClient = new AWS.DynamoDB.DocumentClient();
 
 exports.handler = async (event, context, callback) => {
