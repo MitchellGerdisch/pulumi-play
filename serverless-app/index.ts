@@ -42,22 +42,18 @@ const fileTable = new aws.dynamodb.Table(dbTableName, {
     rangeKey: "TimeStamp",
     readCapacity: 5,
     writeCapacity: 5,
+    /*
     ttl: {
         attributeName: "TimeToExist",
         enabled: false,
     },
+    */
     name: dbTableName, // could not get dynamic name of table into magic function and so essentially hardcoding the table name for now.
 });
 
 /***** Lambda via magic function love *****/
-bucket.onObjectCreated("lambdaFunc", async(event) => {
-    // Read options from the event parameter.
-    console.log("Reading options from event:\n", util.inspect(event, {depth: 5}));
-
-    for (const record of event.Records || [])  {
-        const cleanKey = decodeURIComponent(record.s3.object.key.replace(/\+/g, " "));
-        const eventTime = record.eventTime;
-
+async function pushItem(dbName: string, cleanKey: string, eventTime: string) {
+        const dbClient = new AWS.DynamoDB.DocumentClient({apiVersion: '2012-08-10'})
         // DynamoDB entry
         let dbParams = {
             Item: {
@@ -66,18 +62,28 @@ bucket.onObjectCreated("lambdaFunc", async(event) => {
             },
             TableName: dbTableName,
         }
+        console.log("dbParams",dbParams)
     
-        let dbClient = new AWS.DynamoDB.DocumentClient()
         // Push the DB entry
-        dbClient.put(dbParams, function(err, data) {
+        await dbClient.put(dbParams, function(err, data) {
+            console.log("processing result from dbClient")
             if (err) {
-                console.log(err);
+                console.log("DB PUT ERROR",err);
             } else {
-                console.log(data);
-            }
+                console.log("DB PUT SUCCESS");
+            };
         });
             
-        console.log('Pushed to DynamoDB table, ' +  dbTableName + ' - Key: ' + cleanKey + '; Timestamp: ' + eventTime);
+        console.log('Pushed to DynamoDB table, ' +  dbTableName + ': Key: ' + cleanKey + '; Timestamp: ' + eventTime);
+}
+bucket.onObjectCreated("lambdaFunc", event => {
+
+    // Read options from the event parameter.
+    console.log("Reading options from event:\n", util.inspect(event, {depth: 5}));
+    for (const record of event.Records || [])  {
+        const cleanKey = decodeURIComponent(record.s3.object.key.replace(/\+/g, " "));
+        const eventTime = record.eventTime;
+        pushItem(dbTableName, cleanKey, eventTime);
     };
 });
 
