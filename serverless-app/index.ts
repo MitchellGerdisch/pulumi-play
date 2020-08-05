@@ -32,14 +32,16 @@ const fileTable = new aws.dynamodb.Table(dbTableName, {
             name: "ObjectKey",
             type: "S",
         },
+        /*
         {
             name: "TimeStamp",
             type: "S",
         },
+        */
     ],
     billingMode: "PROVISIONED",
     hashKey: "ObjectKey",
-    rangeKey: "TimeStamp",
+    //rangeKey: "TimeStamp",
     readCapacity: 5,
     writeCapacity: 5,
     ttl: {
@@ -61,11 +63,10 @@ async function pushItem(dbName: string, cleanKey: string, eventTime: string) {
         },
         TableName: dbTableName,
     }
-    console.log("dbParams",dbParams)
+    console.log("Push dbParams",dbParams)
 
     // Push the DB entry
     await dbClient.put(dbParams, function(err, data) {
-        console.log("processing result from dbClient")
         if (err) {
             console.log("DB PUT ERROR",err);
         } else {
@@ -74,14 +75,47 @@ async function pushItem(dbName: string, cleanKey: string, eventTime: string) {
     });
 }
 
-// When bucket objects are created (e.g. a file is uploaded) this will invoke the defined (lambda) function
-bucket.onObjectCreated("lambdaFunc", event => {
+// Deletes item from DB - called when a file is removed from S3
+async function deleteItem(dbName: string, cleanKey: string) {
+    const dbClient = new AWS.DynamoDB.DocumentClient({apiVersion: '2012-08-10'})
+    // DynamoDB entry
+    let dbParams = {
+        Key: {
+            ObjectKey: cleanKey
+        },
+        TableName: dbTableName,
+    }
+    console.log("Delete dbParams",dbParams)
+
+    // delete the DB entry
+    await dbClient.delete(dbParams, function(err, data) {
+        if (err) {
+            console.log("DB DELETE ERROR",err);
+        } else {
+            console.log("DB DELETE SUCCESS", "TABLE: "+dbTableName, "KEY: "+cleanKey);
+        };
+    });
+}
+
+
+// When bucket objects are created (e.g. a file is uploaded) this will invoke the defined (lambda) function to add the item to the DB.
+bucket.onObjectCreated("addObjectLambda", event => {
     // Read options from the event parameter.
-    console.log("Reading options from event:\n", util.inspect(event, {depth: 5}));
+    console.log("S3 Create event:\n", util.inspect(event, {depth: 5}));
     for (const record of event.Records || [])  {
         const cleanKey = decodeURIComponent(record.s3.object.key.replace(/\+/g, " "));
         const eventTime = record.eventTime;
         pushItem(dbTableName, cleanKey, eventTime);
+    };
+});
+
+// When bucket objects are deleted this will invoke the defined (lambda) function to remove the item from the DB.
+bucket.onObjectRemoved("deleteObjectLambda", event => {
+    // Read options from the event parameter.
+    console.log("S3 Delete event:\n", util.inspect(event, {depth: 5}));
+    for (const record of event.Records || [])  {
+        const cleanKey = decodeURIComponent(record.s3.object.key.replace(/\+/g, " "));
+        deleteItem(dbTableName, cleanKey);
     };
 });
 
