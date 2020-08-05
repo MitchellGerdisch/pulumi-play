@@ -16,28 +16,15 @@ import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import * as awsx from "@pulumi/awsx";
 
-
 /**** S3 Bucket *****/
 // Create an AWS resource (S3 Bucket)
 const bucket = new aws.s3.Bucket("serverless-app-bkt");
 
-let filesDir = "samplefiles"; // directory for some files to load as part of the S3 set up.
-
-// push each file to the S3 bucket
-for (let item of require("fs").readdirSync(filesDir)) {
-    let filePath = require("path").join(filesDir, item);
-    let object = new aws.s3.BucketObject(item, {
-      bucket: bucket,
-      source: new pulumi.asset.FileAsset(filePath),     // use FileAsset to point to a file
-    });
-}
-
-
 /**** DynamoDB *****/
-const fileTable = new aws.dynamodb.Table("file-table", {
+const fileTable = new aws.dynamodb.Table("s3object-table", {
     attributes: [
         {
-            name: "FileName",
+            name: "ObjectKey",
             type: "S",
         },
         {
@@ -46,7 +33,7 @@ const fileTable = new aws.dynamodb.Table("file-table", {
         },
     ],
     billingMode: "PROVISIONED",
-    hashKey: "FileName",
+    hashKey: "ObjectKey",
     rangeKey: "TimeStamp",
     readCapacity: 5,
     writeCapacity: 5,
@@ -56,6 +43,49 @@ const fileTable = new aws.dynamodb.Table("file-table", {
     },
 });
 
-// Export the name of the bucket
-export const bucketName = bucket.id;
-export const table = fileTable.id;
+/***** Lambda function *****/
+const lambdaRole = new aws.iam.Role("lambdaRole", {
+    assumeRolePolicy: {
+       Version: "2012-10-17",
+       Statement: [{
+          Action: "sts:AssumeRole",
+          Principal: {
+             Service: "lambda.amazonaws.com",
+          },
+          Effect: "Allow",
+          Sid: "",
+       }],
+    },
+ });
+ new aws.iam.RolePolicyAttachment("lambdaRoleAttach", {
+    role: lambdaRole,
+    policyArn: aws.iam.ManagedPolicies.AWSLambdaFullAccess,
+ });
+ 
+ // Create the lambda function using the function in our functions directory
+ const  lambdaFunc = new aws.lambda.Function("lambdaFunc", {
+   code: new pulumi.asset.AssetArchive({
+        ".": new pulumi.asset.FileArchive("./functions"),
+    }),
+    handler: "pushS3Info.handler",
+    runtime: "nodejs12.x",
+    role: lambdaRole.arn,
+ });
+ 
+ bucket.onObjectCreated("lambdaFunc", lambdaFunc);
+
+// push some sample files to the S3 bucket after everything is set up.
+let filesDir = "samplefiles"; // directory for some files to load as part of the S3 set up.
+for (let item of require("fs").readdirSync(filesDir)) {
+    let filePath = require("path").join(filesDir, item);
+    let object = new aws.s3.BucketObject(item, {
+      bucket: bucket,
+      source: new pulumi.asset.FileAsset(filePath),     // use FileAsset to point to a file
+    });
+}
+
+
+// Export some data
+export const S3bucket = bucket.id;
+export const DynamoDbTable = fileTable.id;
+export const LambdaFunc = lambdaFunc.id;
