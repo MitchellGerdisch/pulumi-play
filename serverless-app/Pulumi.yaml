@@ -1,0 +1,3 @@
+name: serverless-app
+runtime: nodejs
+description: Serverless App set up
