@@ -20,7 +20,9 @@ import * as AWS  from 'aws-sdk';
 
 /**** S3 Bucket *****/
 // Create an AWS resource (S3 Bucket)
-const bucket = new aws.s3.Bucket("serverless-app-bkt");
+const bucket = new aws.s3.Bucket("serverless-app-bkt", {
+    forceDestroy: true,
+});
 
 /**** DynamoDB *****/
 const dbTableName = "s3object-table" 
