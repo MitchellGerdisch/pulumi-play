@@ -21,7 +21,7 @@ import * as AWS  from 'aws-sdk';
 /**** S3 Bucket *****/
 // Create an AWS resource (S3 Bucket)
 const bucket = new aws.s3.Bucket("serverless-app-bkt", {
-    forceDestroy: true,
+    forceDestroy: true, // destroys bucket even if there are files in there
 });
 
 /**** DynamoDB *****/
@@ -42,42 +42,40 @@ const fileTable = new aws.dynamodb.Table(dbTableName, {
     rangeKey: "TimeStamp",
     readCapacity: 5,
     writeCapacity: 5,
-    /*
     ttl: {
         attributeName: "TimeToExist",
         enabled: false,
     },
-    */
-    name: dbTableName, // could not get dynamic name of table into magic function and so essentially hardcoding the table name for now.
+    name: dbTableName, // assures the table name is known. to-do: figure out how to use generated table name in the magic function.
 });
 
 /***** Lambda via magic function love *****/
+// Helper function that the magic function calls to push the item.
 async function pushItem(dbName: string, cleanKey: string, eventTime: string) {
-        const dbClient = new AWS.DynamoDB.DocumentClient({apiVersion: '2012-08-10'})
-        // DynamoDB entry
-        let dbParams = {
-            Item: {
-                ObjectKey: cleanKey,
-                TimeStamp: eventTime,
-            },
-            TableName: dbTableName,
-        }
-        console.log("dbParams",dbParams)
-    
-        // Push the DB entry
-        await dbClient.put(dbParams, function(err, data) {
-            console.log("processing result from dbClient")
-            if (err) {
-                console.log("DB PUT ERROR",err);
-            } else {
-                console.log("DB PUT SUCCESS");
-            };
-        });
-            
-        console.log('Pushed to DynamoDB table, ' +  dbTableName + ': Key: ' + cleanKey + '; Timestamp: ' + eventTime);
-}
-bucket.onObjectCreated("lambdaFunc", event => {
+    const dbClient = new AWS.DynamoDB.DocumentClient({apiVersion: '2012-08-10'})
+    // DynamoDB entry
+    let dbParams = {
+        Item: {
+            ObjectKey: cleanKey,
+            TimeStamp: eventTime,
+        },
+        TableName: dbTableName,
+    }
+    console.log("dbParams",dbParams)
 
+    // Push the DB entry
+    await dbClient.put(dbParams, function(err, data) {
+        console.log("processing result from dbClient")
+        if (err) {
+            console.log("DB PUT ERROR",err);
+        } else {
+            console.log("DB PUT SUCCESS", "TABLE: "+dbTableName, "KEY: "+cleanKey, "TIME: "+eventTime);
+        };
+    });
+}
+
+// When bucket objects are created (e.g. a file is uploaded) this will invoke the defined (lambda) function
+bucket.onObjectCreated("lambdaFunc", event => {
     // Read options from the event parameter.
     console.log("Reading options from event:\n", util.inspect(event, {depth: 5}));
     for (const record of event.Records || [])  {
