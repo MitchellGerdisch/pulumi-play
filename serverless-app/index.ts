@@ -119,7 +119,6 @@ bucket.onObjectRemoved("deleteObjectLambda", event => {
     };
 });
 
-/**** this doesn't really work as expected so not bothering for now 
 // push some sample files to the S3 bucket after everything is set up.
 let filesDir = "samplefiles"; // directory for some files to load as part of the S3 set up.
 for (let item of require("fs").readdirSync(filesDir)) {
@@ -129,7 +128,6 @@ for (let item of require("fs").readdirSync(filesDir)) {
       source: new pulumi.asset.FileAsset(filePath),     // use FileAsset to point to a file
     });
 }
-*****8*/
 
 // Export some data
 export const S3bucket = bucket.id;
