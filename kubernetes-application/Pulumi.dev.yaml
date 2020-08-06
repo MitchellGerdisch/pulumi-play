@@ -1,2 +1,6 @@
 config:
   aws:region: us-east-1
+  kubernetes-application:dockerregistry: https://index.docker.io/v1/
+  kubernetes-application:dockertoken:
+    secure: AAABAFn0kvUBORkoVToiXrzG29LUFS0owjZk8OuEXlZJANybu3EiKKMROskR1UjiJpQzA/C4DgYcBtDSvKzsw6HFNcY=
+  kubernetes-application:dockeruser: mitchellgerdisch
