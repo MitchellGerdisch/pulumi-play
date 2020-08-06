@@ -1,0 +1,3 @@
+name: kubernetes-application
+runtime: nodejs
+description: kubernetes application exercise
