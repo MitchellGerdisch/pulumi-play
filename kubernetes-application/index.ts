@@ -6,8 +6,8 @@
  *
  * Plan:
  * - DONE Get basic docker image creation working.
- * - Get kubernetes cluster creation working.
- * - Figure out how to deploy image to cluster.
+ * - DONE Get kubernetes cluster creation working.
+ * - DONE Figure out how to deploy image to cluster.
  * - Add in logic to allow config changes to drive contents of the web page.
  * - Move some parts to a Component Resource.
  */
@@ -25,14 +25,20 @@ const config = new pulumi.Config();
 const dockerUser = config.require("dockeruser")
 const dockerRegistry = config.require("dockerregistry")
 const dockerToken = config.requireSecret("dockertoken")
+
 const dockerImage = "kub-app";
 
+// Get the hello world add on text from config 
+const helloWorldText = config.require("helloworldtext")
 
 // A thing of beauty this is.
-export const kaImage = new docker.Image(dockerImage, {
+const kaImage = new docker.Image(dockerImage, {
     imageName: pulumi.interpolate`${dockerUser}/${dockerImage}:v1.0.0`,
     build: {
         context: `./${dockerImage}`,
+        args: { 
+            HELLOWORLD_ARG: helloWorldText,
+        },
     },
     registry: {
         server: dockerRegistry,
@@ -76,7 +82,7 @@ export const kubeconfig = cluster.kubeconfig;
 const ns = new k8s.core.v1.Namespace(nameBase, {}, { provider: cluster.provider });
 
 // Export the Namespace name
-export const namespaceName = ns.metadata.name;
+const namespaceName = ns.metadata.name;
 
 // Deploy the image we built above
 const appLabels = { appClass: nameBase};
@@ -99,6 +105,7 @@ const deployment = new k8s.apps.v1.Deployment(nameBase,
                             name: nameBase,
                             image: kaImage.baseImageName, // Stand up the image created above
                             ports: [{ name: "http", containerPort: 8080 }], // match the setting in Dockerfile
+                            imagePullPolicy: "Always", // this way if I tinker with the image and restart the deployment using kubectl it'll grab the newly created image.
                         },
                     ],
                 },
@@ -111,7 +118,7 @@ const deployment = new k8s.apps.v1.Deployment(nameBase,
 );
 
 // Export the Deployment name
-export const deploymentName = deployment.metadata.name;
+const deploymentName = deployment.metadata.name;
 
 // Create a LoadBalancer Service for the Hello-World image Deployment
 const service = new k8s.core.v1.Service(nameBase,
@@ -132,6 +139,5 @@ const service = new k8s.core.v1.Service(nameBase,
 );
 
 // Export the Service name and public LoadBalancer Endpoint
-export const serviceName = service.metadata.name;
-export const serviceHostname = service.status.loadBalancer.ingress[0].hostname;
+export const CLICK_HERE = pulumi.interpolate `http://${service.status.loadBalancer.ingress[0].hostname}`;
 

@@ -3,6 +3,9 @@ FROM node:12
 # Create app directory
 WORKDIR /usr/src/app
 
+ARG HELLOWORLD_ARG="Dockerfile placeholder"
+ENV HELLO_WORLD_TEXT=$HELLOWORLD_ARG
+
 # Install app dependencies
 # A wildcard is used to ensure both package.json AND package-lock.json are copied
 # where available (npm@5+)

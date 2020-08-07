@@ -6,10 +6,12 @@ const express = require('express');
 const PORT = 8080;
 const HOST = '0.0.0.0';
 
+const HELLOWORLDTEXT = process.env.HELLO_WORLD_TEXT || "No hello world text found. WTH"
+
 // App
 const app = express();
 app.get('/', (req, res) => {
-  res.send('Hello World');
+  res.send('Hello World '+HELLOWORLDTEXT);
 });
 
 app.listen(PORT, HOST);
