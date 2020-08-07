@@ -19,7 +19,6 @@ export class S3LambdaDynamo extends pulumi.ComponentResource {
 
     public bucketName: pulumi.Output<string>;
 
-    //constructor(dbTableName: string, opts: pulumi.ComponentResourceOptions = {}) {
     constructor(name: string, dbTableName: string, opts: pulumi.ComponentResourceOptions = {}) {
 
         // Register this component 

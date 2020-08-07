@@ -3,22 +3,17 @@
  * Using Pulumi, create and deploy a web application running in Kubernetes. The web application
  * should display a customized web page that returns a configurable value in its web page
  * response.
+ * 
+ * TODOS: 
+ * - Is there a way to prompt the user during a pulumi up? The idea being to use that prompt for the hello world addon text
+ *   instead of using the config mechanism.
  *
- * Plan:
- * - DONE Get basic docker image creation working.
- * - DONE Get kubernetes cluster creation working.
- * - DONE Figure out how to deploy image to cluster.
- * - Add in logic to allow config changes to drive contents of the web page.
- * - Move some parts to a Component Resource.
  */
 
 import * as pulumi from "@pulumi/pulumi";
-import * as aws from "@pulumi/aws";
-import * as awsx from "@pulumi/awsx";
 import * as docker from "@pulumi/docker";
-import * as eks from "@pulumi/eks";
 import * as k8s from "@pulumi/kubernetes";
-
+import { K8sCluster } from './k8scluster'
 
 /**** Docker Image Build and Push *****/
 const config = new pulumi.Config();
@@ -47,36 +42,13 @@ const kaImage = new docker.Image(dockerImage, {
     },
 });
 
-/***** Kubernetes Cluster Set Up *****/
-// VPC and Security Group
+/***** Kubernetes cluster and related VPC set up *****/
 const nameBase = "kub-app";
 const vpcCidr = "10.0.0.0/16";
-const reg = "us-east-1";
-const az1 = reg+"a";
-const az2 = reg+"b";
-
-let kavpc = new awsx.ec2.Vpc(nameBase, {
-    cidrBlock : vpcCidr,
-    subnets: [ 
-        {type: "public"},
-    ],
-    numberOfNatGateways: 0,
-    tags: { "Name": nameBase }
-});
-
-// K8s cluster using EKS
-const cluster = new eks.Cluster(nameBase, {
-    vpcId: kavpc.id,
-    subnetIds: kavpc.publicSubnetIds,
-    desiredCapacity: 2,
-    minSize: 1,
-    maxSize: 2,
-    storageClasses: "gp2",
-    deployDashboard: false,
-});
+const cluster = new K8sCluster(nameBase+"k8s", nameBase, vpcCidr, {});
 
 // Export the clusters' kubeconfig.
-export const kubeconfig = cluster.kubeconfig;
+export const kubeconfig = cluster.kubeConfig;
 
 // Create a Kubernetes Namespace
 const ns = new k8s.core.v1.Namespace(nameBase, {}, { provider: cluster.provider });
@@ -139,5 +111,5 @@ const service = new k8s.core.v1.Service(nameBase,
 );
 
 // Export the Service name and public LoadBalancer Endpoint
-export const CLICK_HERE = pulumi.interpolate `http://${service.status.loadBalancer.ingress[0].hostname}`;
+export const website = pulumi.interpolate `http://${service.status.loadBalancer.ingress[0].hostname}`;
 

@@ -3,7 +3,7 @@
  * bucket and builds an index of the files in a database table.
  * 
  * TODOs
- * -  Figure out how to get the file generation stuff to run after the magic functions are created and ready.
+ * - Figure out how to get the file generation stuff to run after the magic functions are created and ready.
  * - Maybe change things from using two different triggers (create and delete) and functions to one trigger (any event) and
  *   one function that handles the different events (e.g. not just create and delete but update)
  */
@@ -15,8 +15,6 @@ import * as util from 'util';
 import * as AWS  from 'aws-sdk';
 import { S3LambdaDynamo } from './s3lambda'
 
-
-
 /**** DynamoDB *****/
 const dbTableName = "s3object-table" 
 const fileTable = new aws.dynamodb.Table(dbTableName, {
@@ -25,16 +23,9 @@ const fileTable = new aws.dynamodb.Table(dbTableName, {
             name: "ObjectKey",
             type: "S",
         },
-        /*
-        {
-            name: "TimeStamp",
-            type: "S",
-        },
-        */
     ],
     billingMode: "PROVISIONED",
     hashKey: "ObjectKey",
-    //rangeKey: "TimeStamp",
     readCapacity: 5,
     writeCapacity: 5,
     ttl: {
