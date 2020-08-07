@@ -22,56 +22,116 @@ import * as k8s from "@pulumi/kubernetes";
 
 /**** Docker Image Build and Push *****/
 const config = new pulumi.Config();
-const dockeruser = config.require("dockeruser")
-const dockerregistry = config.require("dockerregistry")
-const dockertoken = config.requireSecret("dockertoken")
+const dockerUser = config.require("dockeruser")
+const dockerRegistry = config.require("dockerregistry")
+const dockerToken = config.requireSecret("dockertoken")
 const dockerImage = "kub-app";
 
 
 // A thing of beauty this is.
-const myImage = new docker.Image(dockerImage, {
-    imageName: pulumi.interpolate`${dockeruser}/${dockerImage}:v1.0.0`,
+export const kaImage = new docker.Image(dockerImage, {
+    imageName: pulumi.interpolate`${dockerUser}/${dockerImage}:v1.0.0`,
     build: {
         context: `./${dockerImage}`,
     },
     registry: {
-        server: dockerregistry,
-        username: dockeruser,
-        password: dockertoken,
+        server: dockerRegistry,
+        username: dockerUser,
+        password: dockerToken,
     },
 });
 
 /***** Kubernetes Cluster Set Up *****/
 // VPC and Security Group
-const name_base = "kub-app";
-const vpc_cidr = "10.0.0.0/16";
+const nameBase = "kub-app";
+const vpcCidr = "10.0.0.0/16";
 const reg = "us-east-1";
 const az1 = reg+"a";
 const az2 = reg+"b";
 
-let kavpc = new awsx.ec2.Vpc(name_base, {
-    cidrBlock : vpc_cidr,
+let kavpc = new awsx.ec2.Vpc(nameBase, {
+    cidrBlock : vpcCidr,
     subnets: [ 
         {type: "public"},
     ],
     numberOfNatGateways: 0,
-    tags: { "Name": name_base }
+    tags: { "Name": nameBase }
 });
 
-// Allocate a security group and then a series of rules:
-let mysg = new awsx.ec2.SecurityGroup(name_base+"-sg", { vpc: kavpc });
-
-// inbound HTTP traffic on port 80 from anywhere
-mysg.createIngressRule("https-access", {
-    location: new awsx.ec2.AnyIPv4Location(),
-    ports: new awsx.ec2.TcpPorts(80),
-    description: "allow HTTP access from anywhere",
+// K8s cluster using EKS
+const cluster = new eks.Cluster(nameBase, {
+    vpcId: kavpc.id,
+    subnetIds: kavpc.publicSubnetIds,
+    desiredCapacity: 2,
+    minSize: 1,
+    maxSize: 2,
+    storageClasses: "gp2",
+    deployDashboard: false,
 });
 
-// 3) outbound TCP traffic on any port to anywhere
-mysg.createEgressRule("outbound-access", {
-    location: new awsx.ec2.AnyIPv4Location(),
-    ports: new awsx.ec2.AllTcpPorts(),
-    description: "allow outbound access to anywhere",
-});
+// Export the clusters' kubeconfig.
+export const kubeconfig = cluster.kubeconfig;
+
+// Create a Kubernetes Namespace
+const ns = new k8s.core.v1.Namespace(nameBase, {}, { provider: cluster.provider });
+
+// Export the Namespace name
+export const namespaceName = ns.metadata.name;
+
+// Deploy the image we built above
+const appLabels = { appClass: nameBase};
+const deployment = new k8s.apps.v1.Deployment(nameBase,
+    {
+        metadata: {
+            namespace: namespaceName,
+            labels: appLabels,
+        },
+        spec: {
+            replicas: 1,
+            selector: { matchLabels: appLabels },
+            template: {
+                metadata: {
+                    labels: appLabels,
+                },
+                spec: {
+                    containers: [
+                        {
+                            name: nameBase,
+                            image: kaImage.baseImageName, // Stand up the image created above
+                            ports: [{ name: "http", containerPort: 8080 }], // match the setting in Dockerfile
+                        },
+                    ],
+                },
+            },
+        },
+    },
+    {
+        provider: cluster.provider,
+    },
+);
+
+// Export the Deployment name
+export const deploymentName = deployment.metadata.name;
+
+// Create a LoadBalancer Service for the Hello-World image Deployment
+const service = new k8s.core.v1.Service(nameBase,
+    {
+        metadata: {
+            labels: appLabels,
+            namespace: namespaceName,
+        },
+        spec: {
+            type: "LoadBalancer",
+            ports: [{ port: 80, targetPort: "http" }],
+            selector: appLabels,
+        },
+    },
+    {
+        provider: cluster.provider,
+    },
+);
+
+// Export the Service name and public LoadBalancer Endpoint
+export const serviceName = service.metadata.name;
+export const serviceHostname = service.status.loadBalancer.ingress[0].hostname;
 
