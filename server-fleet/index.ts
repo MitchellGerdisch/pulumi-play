@@ -22,4 +22,14 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import * as awsx from "@pulumi/awsx";
+import { WebServerFleet, DeploymentArgs } from "./WebServerFleet";
+//import { DeploymentArgs } from "./WebServerFleet";
 
+let os_choice: pulumi.Input<string> = "amazon"
+let machines: DeploymentArgs[] = [
+    {os: os_choice}
+]
+let fleet = new WebServerFleet("fleet", machines)
+//let fleet = new WebServerFleet("fleet", [])
+
+export const VMs = fleet.vmsInfo;
