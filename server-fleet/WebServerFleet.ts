@@ -62,8 +62,9 @@ export class WebServerFleet extends pulumi.ComponentResource {
         sudo apt install -y nginx`;
         let centos_userData =
         `#!/bin/bash
-        sudo yum update
-        sudo yum install -y nginx`;
+        sudo yum -y update
+        sudo yum -y install nginx
+        sudo service nginx start`;
 
         // Check if going with defaults across the board
         // If so, then at least create one entry to drive instance creation.
@@ -72,18 +73,23 @@ export class WebServerFleet extends pulumi.ComponentResource {
         }
 
         // Launch the instances of various types and counts.
-        for (let arg of args) {
+        let subnet_idx = 1; // used to switch back and forth across the subnets/azs
+        for (let arg_index in args) {
+            let arg = args[arg_index];
             let nameBase = arg.nameBase || "ws";
             let os = arg.os || "ubuntu";
-            console.log("OS: "+os)
+            let name_os = (os == "ubuntu" ? "u" : "a")
             let size = arg.size || "small";
             let count = arg.count || 1;
+            // poor man's crossguard to avoid large deployments
+            if (count > 3) { count = 3 }
             let ami = getAmi(os); // I wanted to just use a hash to get the ami, but I hit some issues and went with a function.
             let type = getInstanceType(size); // ditto. though I think it was just type casting issues ... this will have to do for now.
 
             for (let x = 0; x < count; x++) {
-                let vmName = nameBase + "-" + x;
-                let subnetId = subnets[(x%2)] // two subnets, cycle through them
+                let vmName = nameBase + "-" + name_os + "-" + arg_index + x;
+                subnet_idx = (subnet_idx == 0 ? 1 : 0);
+                let subnetId = subnets[subnet_idx];
 
                 // Build the instance
                 let instance = new aws.ec2.Instance(vmName, {
@@ -96,7 +102,7 @@ export class WebServerFleet extends pulumi.ComponentResource {
                     tags: {
                         "Name": vmName,
                     },
-                    keyName: "mitch-new_sshkey",
+                    keyName: "mitch_new_sshkey",
                 });
 
                 this.vmsInfo.push({

@@ -25,9 +25,10 @@ import * as awsx from "@pulumi/awsx";
 import { WebServerFleet, DeploymentArgs } from "./WebServerFleet";
 //import { DeploymentArgs } from "./WebServerFleet";
 
-let os_choice: pulumi.Input<string> = "amazon"
 let machines: DeploymentArgs[] = [
-    {os: os_choice}
+    {os: "amazon", count: 2, size: "medium"},
+    {os: "ubuntu", count: 1, size: "large"},
+    {os: "ubuntu", count: 1, size: "small"},
 ]
 let fleet = new WebServerFleet("fleet", machines)
 //let fleet = new WebServerFleet("fleet", [])
