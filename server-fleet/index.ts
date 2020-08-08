@@ -3,21 +3,7 @@
  * systems. Your application should accept the following (pseudocode) as input and provision
  * virtual machines as defined by the inputs.
  * 
- * Plan:
- * - create the component resource that creates:
- *  - vpc
- *  - servers with nginx installed
- *  - interface spec
- *      - name base
- *      - VPC CIDR
- *      - subnet choice
- *      - instance size choices
- *      - OS choices (ubuntu or amazon to avoid having to approve)
- * - create index.ts that takes config elements or defaults to deploy
- * 
  */
-
-
 
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
@@ -26,9 +12,8 @@ import { WebServerFleet, DeploymentArgs } from "./WebServerFleet";
 //import { DeploymentArgs } from "./WebServerFleet";
 
 let machines: DeploymentArgs[] = [
-    {os: "amazon", count: 2, size: "medium"},
-    {os: "ubuntu", count: 1, size: "large"},
-    {os: "ubuntu", count: 1, size: "small"},
+    {os: "amazon", count: 1, size: "small"},
+    {nameBase: "web", os: "ubuntu", count: 1, size: "small"},
 ]
 let fleet = new WebServerFleet("fleet", machines)
 //let fleet = new WebServerFleet("fleet", [])
