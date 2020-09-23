@@ -1,1 +1,0 @@
-# Some Pulumi Azure tinkering.
