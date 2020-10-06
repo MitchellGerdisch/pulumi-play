@@ -68,7 +68,7 @@ async function getRestaurants(dbName: string) {
       }
     })
     .promise();
-  return dbContents;
+  return dbContents.Items;
 }
 
 const api = new awsx.apigateway.API('restaurants-api', {
