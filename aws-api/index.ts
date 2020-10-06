@@ -59,41 +59,17 @@ async function getRestaurants(dbName: string) {
     TableName: dbName,
   };
 
-  let dbContents;
-  await dbClient
+  const dbContents = await dbClient
     .scan(dbParams, (err, data) => {
-      console.log('in scan logic');
       if (err) {
         console.log(err);
       } else {
         console.log('Success', data.Items);
-        if (data.Items) {
-          dbContents = data.Items;
-          console.log('in data.Items');
-        }
       }
     })
     .promise();
-  console.log('after scan logic');
   return dbContents;
 }
-
-//   // get the DB entry
-//   const tableItems = await dbClient
-//     .scan(dbParams, function (err, data) {
-//       if (err) {
-//         console.log('DB GET ERROR', err);
-//       } else {
-//         console.log('DB GET SUCCESS', data);
-//         const unmarshalledData = data.Items.map(el => {
-//             return AWS.DynamoDB.Converter.unmarshall(el)
-//         })
-
-//       }
-//     })
-//     .promise();
-//   return tableItems.Items;
-// }
 
 const api = new awsx.apigateway.API('restaurants-api', {
   routes: [
@@ -101,10 +77,7 @@ const api = new awsx.apigateway.API('restaurants-api', {
       path: '/restaurants',
       method: 'GET',
       eventHandler: async (event) => {
-        //const params = event.queryStringParameters || {}; // params
-        //const name = params.name || '';
         const result = await getRestaurants(tableName);
-        console.log('result', result);
         return {
           statusCode: 200,
           headers: {
@@ -120,5 +93,6 @@ const api = new awsx.apigateway.API('restaurants-api', {
   ],
 });
 
-// Export the API gateway URL
-export const apiUrl = api.stage.invokeUrl;
+// Export the API call for quick testing
+// This can also be passed into the application, etc as per the guide
+export const apiUrl = pulumi.interpolate`${api.stage.invokeUrl}/restaurants`;
