@@ -6,37 +6,39 @@ import * as pulumi from '@pulumi/pulumi';
 import * as aws from '@pulumi/aws';
 import * as awsx from '@pulumi/awsx';
 import * as random from '@pulumi/random';
-import { RandomUuid } from '@pulumi/random';
+import * as AWS from 'aws-sdk';
 
-// Let's build a DynamoDB
+///// DynamoDB Set Up //////
+
+// Create a DynamoDB table
 const tableName = 'Restaurants';
 const table = new aws.dynamodb.Table(tableName, {
   attributes: [
     {
-      name: 'Id',
+      name: 'id',
       type: 'S',
     },
   ],
   billingMode: 'PROVISIONED',
-  hashKey: 'Id',
+  hashKey: 'id',
   readCapacity: 10,
   writeCapacity: 5,
   name: tableName,
 });
 
-// Let's prepopulate with some data.
-// This is not necessary in general since external systems will likely be the ones populating data, but the guide included some prepopulation of entries.
+// Prepopulate with some data.
+// This is generally not necessary since external systems will likely be the ones populating data, but for the sake of showing examples in the guide, let's add some random-ish data.
 // Plus it shows some fun bits of Pulumi IaC - namely, being able to use natural language for loops and other concepts like conditional assignment, etc.
-// This leverages the Random provider which includes a RandomPet to create somewhat normal sounding names instead of random strings of characters.
+// This leverages the Random provider to create the UUID and Name.
 const numPreItems = 3;
 for (let i = 0; i < numPreItems; i++) {
   const randUuid = new random.RandomUuid('uuid' + i);
   const randName = new random.RandomPet('name' + i);
   const freeDel = i % 2 == 0 ? true : false;
   const item = pulumi.interpolate`{
-        "Id": {"S": "${randUuid.result}"},
-        "Name": {"S": "${randName.id}"},
-        "FreeDelivery": {"BOOL": ${freeDel}}
+        "id": {"S": "${randUuid.result}"},
+        "name": {"S": "${randName.id}"},
+        "freeDelivery": {"BOOL": ${freeDel}}
     }`;
   const tableItem = new aws.dynamodb.TableItem('TableItem' + i, {
     tableName: table.name,
@@ -44,3 +46,79 @@ for (let i = 0; i < numPreItems; i++) {
     item: item,
   });
 }
+
+///// API Gateway and Lambda Event Handler //////
+// This next part leverages Pulumi's Crosswalk for AWS (https://www.pulumi.com/docs/guides/crosswalk/aws/).
+// In a nutshell, Crosswalk simplifies complex multistep and resource configuration use-cases.
+
+// Helper function to retrieve specific customer data from DB
+async function getRestaurants(dbName: string) {
+  const dbClient = new AWS.DynamoDB.DocumentClient();
+  // DynamoDB entry
+  let dbParams = {
+    TableName: dbName,
+  };
+
+  let dbContents;
+  await dbClient
+    .scan(dbParams, (err, data) => {
+      console.log('in scan logic');
+      if (err) {
+        console.log(err);
+      } else {
+        console.log('Success', data.Items);
+        if (data.Items) {
+          dbContents = data.Items;
+          console.log('in data.Items');
+        }
+      }
+    })
+    .promise();
+  console.log('after scan logic');
+  return dbContents;
+}
+
+//   // get the DB entry
+//   const tableItems = await dbClient
+//     .scan(dbParams, function (err, data) {
+//       if (err) {
+//         console.log('DB GET ERROR', err);
+//       } else {
+//         console.log('DB GET SUCCESS', data);
+//         const unmarshalledData = data.Items.map(el => {
+//             return AWS.DynamoDB.Converter.unmarshall(el)
+//         })
+
+//       }
+//     })
+//     .promise();
+//   return tableItems.Items;
+// }
+
+const api = new awsx.apigateway.API('restaurants-api', {
+  routes: [
+    {
+      path: '/restaurants',
+      method: 'GET',
+      eventHandler: async (event) => {
+        //const params = event.queryStringParameters || {}; // params
+        //const name = params.name || '';
+        const result = await getRestaurants(tableName);
+        console.log('result', result);
+        return {
+          statusCode: 200,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Headers': '*',
+            'Access-Control-Allow-Methods': '*',
+            'Access-Control-Allow-Credentials': '*',
+          },
+          body: JSON.stringify(result),
+        };
+      },
+    },
+  ],
+});
+
+// Export the API gateway URL
+export const apiUrl = api.stage.invokeUrl;
