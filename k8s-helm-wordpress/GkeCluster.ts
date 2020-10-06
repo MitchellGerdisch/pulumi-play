@@ -1,6 +1,7 @@
 // COPIED from https://raw.githubusercontent.com/stack72/multi-cloud-kubernetes/master/ManagedGkeCluster.ts
 /* Modified as follows:
  * - Changed node sizing to be only one node and to use a smaller instance type.
+ * - Changed HorizontalPodAutocating to disabled: true
  */
 
 import * as gcp from '@pulumi/gcp';
@@ -111,7 +112,7 @@ export class ManagedGkeCluster extends pulumi.ComponentResource {
 
         addonsConfig: {
           horizontalPodAutoscaling: {
-            disabled: false,
+            disabled: true,
           },
           istioConfig: {
             disabled: false,
@@ -163,8 +164,8 @@ export class ManagedGkeCluster extends pulumi.ComponentResource {
         },
 
         nodeConfig: {
-          machineType: 'n1-standard-2',
-          diskType: 'pd-ssd',
+          machineType: 'n1-standard-1',
+          diskType: 'pd-standard',
           diskSizeGb: 30,
           imageType: 'COS',
           preemptible: false,
