@@ -58,7 +58,7 @@ for (let i = 0; i < numPreItems; i++) {
 // This next part leverages Pulumi's Crosswalk for AWS (https://www.pulumi.com/docs/guides/crosswalk/aws/).
 // In a nutshell, Crosswalk simplifies complex multistep resource configuration use-cases.
 
-// This function is the event handler code that Pulumi will be automatically pushed into Lambda as part of the API gateway declaration below.
+// This function is the event handler code that will be automatically pushed into Lambda as part of the API gateway declaration below.
 // Of course, this function and additional handler functions for other API methods (e.g. POST method to add restaurants to the DB, or DELETE method to remove restaurants)
 // could be stored and maintaned in a separate module file. But for the sake of readability it is kept in the main file.
 async function getRestaurants(dbName: string) {
@@ -112,10 +112,11 @@ const apikeys = awsx.apigateway.createAssociatedAPIKeys('restaurant-api-keys', {
 
 // Export the API call and API key for testing
 // Although the API key is sensitive data, for this use-case it is exported to the command line for testing purposes.
-// That said, Pulumi allows you avoid displaying sensitive data via it's secrets support.
+// That said, Pulumi allows you avoid displaying sensitive data via its secrets support.
 export const apiUrl = pulumi.interpolate`${api.stage.invokeUrl}/restaurants`;
 export const apiKeyValue = apikeys.keys[0].apikey.value;
 
-// At this point, these outputs as well as others are available to other systems to complete a pipeline.
+// At this point, these outputs are available to other systems to complete a pipeline.
 // The guide uses the URL and key to configure Nuxt and Netlify. These values are programmatically accessible.
-// Similarly, a Pulumi provider could easily be created that interacts with Netlify as well.
+// Similarly, it may be possible to create a Pulumi provider that interacts with Netlify as well. In that scenario, this file would declare the Netlify resources and pass
+// the URL and API key and whatever else accordingly. Thus giving you a full end-to-end deployment.
