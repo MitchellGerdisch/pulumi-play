@@ -9,5 +9,6 @@ Although this example ends with making the API URL and Key available, it wouldn'
 - Deploy DynamoDB
   - Prepopulate it with some data
 - Deploy API gateway
-  - Use a Lambda event handler for the API
+  - Define a route for the GET method as described in the guide.
+  - Use a Lambda event handler to process the API request and interact with the DynamoDB backend.
   - Enable an API key
